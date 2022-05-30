@@ -1,0 +1,37 @@
+﻿@using Microsoft.JSInterop
+@inject IJSRuntime JS
+
+<button class="@Class" @onclick="OnSignIn">Sign In</button>
+
+@code {
+    [Parameter]
+    public string? Class { get; set; }
+
+    [Parameter]
+    public EventCallback<string> OnTokenReceived { get; set; }
+
+    [Parameter]
+    public string? OAuth2ClientId { get; set; }
+
+    [Parameter]
+    public string[] OAuth2Scopes { get; set; } = new string[] {};
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JS.InvokeVoidAsync("window.googleOAuth2.init", DotNetObjectReference.Create(this), OAuth2ClientId, String.Join("\\ ", OAuth2Scopes));
+        }
+    }
+
+    protected async Task OnSignIn()
+    {
+        await JS.InvokeVoidAsync("window.googleOAuth2.requestToken");
+    }
+
+    [JSInvokable]
+    public async Task OnGoogleAuthCallback(string credential)
+    {
+        await OnTokenReceived.InvokeAsync(credential);
+    }
+}
