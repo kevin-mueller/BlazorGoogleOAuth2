@@ -7,7 +7,7 @@
 
         window.googleOAuth2.client = google.accounts.oauth2.initTokenClient({
             client_id: clientId,
-            scope: 'https://www.googleapis.com/auth/books',
+            scope: scopes,
             callback: (tokenResponse) => {
                 access_token = tokenResponse.access_token;
                 window.googleOAuth2.dotnetReference.invokeMethodAsync('OnGoogleAuthCallback', tokenResponse.access_token).then(_ => { });
