@@ -1,7 +1,10 @@
 ﻿@using Microsoft.JSInterop
-@inject IJSRuntime JS
+@using Newtonsoft.Json
 
-<button class="@Class" @onclick="OnSignIn">Sign In</button>
+@inject IJSRuntime JS
+@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+
+<button class="@Class" @onclick="OnSignIn">@ButtonText</button>
 
 @code {
     [Parameter]
@@ -14,24 +17,59 @@
     public string? OAuth2ClientId { get; set; }
 
     [Parameter]
-    public string[] OAuth2Scopes { get; set; } = new string[] {};
+    public string[] OAuth2Scopes { get; set; } = new string[] { };
+
+    [Parameter]
+    public string ButtonText { get; set; } = "Sign In";
+
+    private bool _isSignedIn;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
             await JS.InvokeVoidAsync("window.googleOAuth2.init", DotNetObjectReference.Create(this), OAuth2ClientId, String.Join("\\ ", OAuth2Scopes));
+            var token = await LocalStorage.GetItemAsStringAsync("googleOAuth2Token");
+            if (token?.Length > 0)
+            {
+                await OnGoogleAuthCallback(token);
+            }
         }
     }
 
     protected async Task OnSignIn()
     {
-        await JS.InvokeVoidAsync("window.googleOAuth2.requestToken");
+        if (!_isSignedIn) {
+            await JS.InvokeVoidAsync("window.googleOAuth2.requestToken");
+            return;    
+        }
+        if (_isSignedIn)
+        {
+            await LocalStorage.RemoveItemAsync("googleOAuth2Token");
+            ButtonText = "Sign In";
+            _isSignedIn = false;
+            StateHasChanged();
+        }
     }
 
     [JSInvokable]
     public async Task OnGoogleAuthCallback(string credential)
     {
         await OnTokenReceived.InvokeAsync(credential);
+        var client = new HttpClient();
+        client.DefaultRequestHeaders.Add("Authorization", "Bearer " + credential);
+
+        try
+        {
+            var res = JsonConvert.DeserializeObject<UserInfo>(await client.GetStringAsync("https://www.googleapis.com/oauth2/v3/userinfo"));
+            ButtonText = res?.Name ?? ButtonText;
+
+            _isSignedIn = true;
+            StateHasChanged();
+        }
+        catch
+        {
+            //ignored (token expired)
+        }
     }
 }
